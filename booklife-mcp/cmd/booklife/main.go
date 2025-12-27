@@ -109,12 +109,11 @@ func cmdServe() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Handle shutdown signals
+	// Handle shutdown signals (silently - MCP uses stdio)
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-sigChan
-		fmt.Println("\nShutting down...")
 		cancel()
 	}()
 
@@ -125,7 +124,7 @@ func cmdServe() {
 		os.Exit(1)
 	}
 
-	fmt.Fprintf(os.Stderr, "Starting BookLife MCP server v%s\n", cfg.Server.Version)
+	// Note: No startup message - MCP uses stdio for communication
 	if err := srv.Run(ctx); err != nil {
 		fmt.Fprintf(os.Stderr, "Server error: %v\n", err)
 		os.Exit(1)

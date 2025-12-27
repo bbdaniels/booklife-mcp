@@ -12,15 +12,18 @@ import (
 func TestHandleSearchBooks(t *testing.T) {
 	t.Run("returns books from hardcover", func(t *testing.T) {
 		mock := &mocks.MockHardcoverProvider{
-			SearchBooksFunc: func(ctx context.Context, query string, limit int) ([]models.Book, error) {
+			SearchBooksFunc: func(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error) {
 				return []models.Book{
 					{Title: "Test Book", Authors: []models.Contributor{{Name: "Test Author", Role: "author"}}},
-				}, nil
+				}, 1, nil
 			},
 		}
 
 		s := &Server{hardcover: mock}
-		input := SearchBooksInput{Query: "test", Limit: 10}
+		input := SearchBooksInput{
+			Query:           "test",
+			PaginationParams: PaginationParams{Page: 1, PageSize: 10},
+		}
 
 		result, data, err := s.handleSearchBooks(context.Background(), nil, input)
 
@@ -31,9 +34,13 @@ func TestHandleSearchBooks(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		books, ok := data.([]models.Book)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be []models.Book")
+			t.Fatal("expected data to be map[string]any")
+		}
+		books, ok := dataMap["books"].([]models.Book)
+		if !ok {
+			t.Fatal("expected 'books' field to be []models.Book")
 		}
 		if len(books) != 1 {
 			t.Errorf("expected 1 book, got %d", len(books))
@@ -45,7 +52,10 @@ func TestHandleSearchBooks(t *testing.T) {
 
 	t.Run("returns empty when no provider configured", func(t *testing.T) {
 		s := &Server{}
-		input := SearchBooksInput{Query: "test", Limit: 10}
+		input := SearchBooksInput{
+			Query:           "test",
+			PaginationParams: PaginationParams{Page: 1, PageSize: 10},
+		}
 
 		result, data, err := s.handleSearchBooks(context.Background(), nil, input)
 
@@ -56,9 +66,13 @@ func TestHandleSearchBooks(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		books, ok := data.([]models.Book)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be []models.Book")
+			t.Fatal("expected data to be map[string]any")
+		}
+		books, ok := dataMap["books"].([]models.Book)
+		if !ok {
+			t.Fatal("expected 'books' field to be []models.Book")
 		}
 		if len(books) != 0 {
 			t.Errorf("expected 0 books, got %d", len(books))
@@ -67,7 +81,10 @@ func TestHandleSearchBooks(t *testing.T) {
 
 	t.Run("requires query", func(t *testing.T) {
 		s := &Server{}
-		input := SearchBooksInput{Query: "", Limit: 10}
+		input := SearchBooksInput{
+			Query:           "",
+			PaginationParams: PaginationParams{Page: 1, PageSize: 10},
+		}
 
 		_, _, err := s.handleSearchBooks(context.Background(), nil, input)
 
@@ -76,22 +93,26 @@ func TestHandleSearchBooks(t *testing.T) {
 		}
 	})
 
-	t.Run("uses default limit when not specified", func(t *testing.T) {
-		var capturedLimit int
+	t.Run("uses default page size when not specified", func(t *testing.T) {
+		var capturedOffset, capturedLimit int
 		mock := &mocks.MockHardcoverProvider{
-			SearchBooksFunc: func(ctx context.Context, query string, limit int) ([]models.Book, error) {
+			SearchBooksFunc: func(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error) {
+				capturedOffset = offset
 				capturedLimit = limit
-				return nil, nil
+				return nil, 0, nil
 			},
 		}
 
 		s := &Server{hardcover: mock}
-		input := SearchBooksInput{Query: "test"} // No limit specified
+		input := SearchBooksInput{Query: "test"} // No page size specified
 
 		_, _, _ = s.handleSearchBooks(context.Background(), nil, input)
 
-		if capturedLimit != 10 {
-			t.Errorf("expected default limit of 10, got %d", capturedLimit)
+		if capturedOffset != 0 {
+			t.Errorf("expected offset of 0, got %d", capturedOffset)
+		}
+		if capturedLimit != 20 {
+			t.Errorf("expected default page size of 20, got %d", capturedLimit)
 		}
 	})
 }
@@ -99,16 +120,19 @@ func TestHandleSearchBooks(t *testing.T) {
 func TestHandleGetMyLibrary(t *testing.T) {
 	t.Run("returns books from hardcover", func(t *testing.T) {
 		mock := &mocks.MockHardcoverProvider{
-			GetUserBooksFunc: func(ctx context.Context, status string, limit int) ([]models.Book, error) {
+			GetUserBooksFunc: func(ctx context.Context, status string, offset, limit int) ([]models.Book, int, error) {
 				return []models.Book{
 					{Title: "My Book", Authors: []models.Contributor{{Name: "Author", Role: "author"}}},
 					{Title: "Another Book", Authors: []models.Contributor{{Name: "Author 2", Role: "author"}}},
-				}, nil
+				}, 2, nil
 			},
 		}
 
 		s := &Server{hardcover: mock}
-		input := GetMyLibraryInput{Status: "reading", Limit: 20}
+		input := GetMyLibraryInput{
+			Status:           "reading",
+			PaginationParams: PaginationParams{Page: 1, PageSize: 20},
+		}
 
 		result, data, err := s.handleGetMyLibrary(context.Background(), nil, input)
 
@@ -119,9 +143,13 @@ func TestHandleGetMyLibrary(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		books, ok := data.([]models.Book)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be []models.Book")
+			t.Fatal("expected data to be map[string]any")
+		}
+		books, ok := dataMap["books"].([]models.Book)
+		if !ok {
+			t.Fatal("expected 'books' field to be []models.Book")
 		}
 		if len(books) != 2 {
 			t.Errorf("expected 2 books, got %d", len(books))
@@ -139,14 +167,15 @@ func TestHandleGetMyLibrary(t *testing.T) {
 		}
 	})
 
-	t.Run("uses default status and limit", func(t *testing.T) {
+	t.Run("uses default status and page size", func(t *testing.T) {
 		var capturedStatus string
-		var capturedLimit int
+		var capturedOffset, capturedLimit int
 		mock := &mocks.MockHardcoverProvider{
-			GetUserBooksFunc: func(ctx context.Context, status string, limit int) ([]models.Book, error) {
+			GetUserBooksFunc: func(ctx context.Context, status string, offset, limit int) ([]models.Book, int, error) {
 				capturedStatus = status
+				capturedOffset = offset
 				capturedLimit = limit
-				return nil, nil
+				return nil, 0, nil
 			},
 		}
 
@@ -158,16 +187,19 @@ func TestHandleGetMyLibrary(t *testing.T) {
 		if capturedStatus != "all" {
 			t.Errorf("expected default status 'all', got '%s'", capturedStatus)
 		}
+		if capturedOffset != 0 {
+			t.Errorf("expected offset of 0, got %d", capturedOffset)
+		}
 		if capturedLimit != 20 {
-			t.Errorf("expected default limit 20, got %d", capturedLimit)
+			t.Errorf("expected default page size 20, got %d", capturedLimit)
 		}
 	})
 
 	t.Run("propagates provider errors", func(t *testing.T) {
 		expectedErr := errors.New("provider error")
 		mock := &mocks.MockHardcoverProvider{
-			GetUserBooksFunc: func(ctx context.Context, status string, limit int) ([]models.Book, error) {
-				return nil, expectedErr
+			GetUserBooksFunc: func(ctx context.Context, status string, offset, limit int) ([]models.Book, int, error) {
+				return nil, 0, expectedErr
 			},
 		}
 
@@ -262,9 +294,13 @@ func TestHandleGetLoans(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		loans, ok := data.([]models.LibbyLoan)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be []models.LibbyLoan")
+			t.Fatal("expected data to be map[string]any")
+		}
+		loans, ok := dataMap["loans"].([]models.LibbyLoan)
+		if !ok {
+			t.Fatal("expected 'loans' field to be []models.LibbyLoan")
 		}
 		if len(loans) != 2 {
 			t.Errorf("expected 2 loans, got %d", len(loans))
@@ -303,9 +339,13 @@ func TestHandleGetHolds(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		holds, ok := data.([]models.LibbyHold)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be []models.LibbyHold")
+			t.Fatal("expected data to be map[string]any")
+		}
+		holds, ok := dataMap["holds"].([]models.LibbyHold)
+		if !ok {
+			t.Fatal("expected 'holds' field to be []models.LibbyHold")
 		}
 		if len(holds) != 1 {
 			t.Errorf("expected 1 hold, got %d", len(holds))
@@ -355,12 +395,12 @@ func TestHandlePlaceHold(t *testing.T) {
 			t.Error("expected auto_borrow to be true")
 		}
 
-		holdData, ok := data.(map[string]string)
+		holdData, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be map[string]string")
+			t.Fatal("expected data to be map[string]any")
 		}
 		if holdData["hold_id"] != "new-hold-id" {
-			t.Errorf("expected hold_id 'new-hold-id', got '%s'", holdData["hold_id"])
+			t.Errorf("expected hold_id 'new-hold-id', got '%v'", holdData["hold_id"])
 		}
 	})
 }
@@ -389,9 +429,13 @@ func TestHandleCheckAvailability(t *testing.T) {
 			t.Fatal("expected result, got nil")
 		}
 
-		avail, ok := data.(*models.LibraryAvailability)
+		dataMap, ok := data.(map[string]any)
 		if !ok {
-			t.Fatal("expected data to be *models.LibraryAvailability")
+			t.Fatal("expected data to be map[string]any")
+		}
+		avail, ok := dataMap["availability"].(*models.LibraryAvailability)
+		if !ok {
+			t.Fatal("expected 'availability' field to be *models.LibraryAvailability")
 		}
 		if !avail.EbookAvailable {
 			t.Error("expected ebook to be available")
@@ -416,8 +460,16 @@ func TestHandleCheckAvailability(t *testing.T) {
 		if result == nil {
 			t.Fatal("expected result, got nil")
 		}
-		if data != nil {
-			t.Error("expected nil data for not found")
+		dataMap, ok := data.(map[string]any)
+		if !ok {
+			t.Fatal("expected data to be map[string]any")
+		}
+		found, ok := dataMap["found"].(bool)
+		if !ok {
+			t.Fatal("expected 'found' field to be bool")
+		}
+		if found {
+			t.Error("expected 'found' to be false for not found book")
 		}
 	})
 }

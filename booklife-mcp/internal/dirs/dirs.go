@@ -135,16 +135,6 @@ func CacheDir() (string, error) {
 	return filepath.Join(home, ".cache", "booklife"), nil
 }
 
-// LegacyDir returns the legacy ~/.booklife directory for backward compatibility.
-// This is deprecated but checked for migrating existing data.
-func LegacyDir() (string, error) {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(home, ".booklife"), nil
-}
-
 // EnsureAll creates all platform-specific directories with appropriate permissions.
 func EnsureAll() error {
 	dirs := []func() (string, error){
@@ -165,60 +155,4 @@ func EnsureAll() error {
 		}
 	}
 	return nil
-}
-
-// MigrateFromLegacy migrates data from ~/.booklife to platform-specific directories.
-// Returns true if migration occurred.
-func MigrateFromLegacy() (bool, error) {
-	legacyDir, err := LegacyDir()
-	if err != nil {
-		return false, err
-	}
-
-	// Check if legacy directory exists
-	if _, err := os.Stat(legacyDir); os.IsNotExist(err) {
-		return false, nil
-	}
-
-	// Check if migration already done (migration marker file)
-	dataDir, err := DataDir()
-	if err != nil {
-		return false, err
-	}
-	markerFile := filepath.Join(dataDir, ".migrated-from-legacy")
-	if _, err := os.Stat(markerFile); err == nil {
-		return false, nil
-	}
-
-	// Perform migration
-	configDir, err := ConfigDir()
-	if err != nil {
-		return false, err
-	}
-
-	// Move libby-identity.json to config dir
-	legacyIdentity := filepath.Join(legacyDir, "libby-identity.json")
-	newIdentity := filepath.Join(configDir, "libby-identity.json")
-	if _, err := os.Stat(legacyIdentity); err == nil {
-		// Ensure target directory exists
-		if err := os.MkdirAll(configDir, 0700); err != nil {
-			return false, err
-		}
-		if err := os.Rename(legacyIdentity, newIdentity); err != nil {
-			return false, err
-		}
-	}
-
-	// Create migration marker
-	if err := os.MkdirAll(dataDir, 0700); err != nil {
-		return true, err
-	}
-	if err := os.WriteFile(markerFile, []byte("migrated"), 0600); err != nil {
-		return true, err
-	}
-
-	// Remove legacy directory if empty
-	os.Remove(legacyDir)
-
-	return true, nil
 }

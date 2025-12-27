@@ -127,6 +127,61 @@ type LibbyLoan struct {
 	IsReturned   bool      `json:"is_returned"`
 }
 
+// LibbySearchResult represents a library catalog search result
+type LibbySearchResult struct {
+	ID            string `json:"id"`
+	MediaID       string `json:"media_id"`
+	Title         string `json:"title"`
+	Subtitle      string `json:"subtitle,omitempty"`
+	Author        string `json:"author"`
+	ISBN          string `json:"isbn,omitempty"`
+	Publisher     string `json:"publisher,omitempty"`
+	PublishingYear int    `json:"publishing_year,omitempty"`
+	CoverURL      string `json:"cover_url,omitempty"`
+	Format        struct {
+		Ebook     bool `json:"ebook"`
+		Audiobook bool `json:"audiobook"`
+		Magazine  bool `json:"magazine"`
+	} `json:"format"`
+	IsAvailable    bool `json:"is_available"`
+	WaitListSize   int  `json:"wait_list_size"`
+}
+
+// LibbyHistoryItem represents a past loan or activity
+type LibbyHistoryItem struct {
+	ID            string    `json:"id"`
+	MediaID       string    `json:"media_id"`
+	Title         string    `json:"title"`
+	Author        string    `json:"author"`
+	Format        string    `json:"format"`
+	CheckoutDate  time.Time `json:"checkout_date"`
+	ReturnDate    time.Time `json:"return_date"`
+	DaysKept      int       `json:"days_kept"` // How long the user had it checked out
+}
+
+// TimelineEntry represents an entry from Libby's timeline export
+type TimelineEntry struct {
+	Title     string    `json:"title"`
+	TitleID   string    `json:"title_id"`
+	Author    string    `json:"author"`
+	Publisher string    `json:"publisher"`
+	ISBN      string    `json:"isbn"`
+	Timestamp int64     `json:"timestamp"` // Unix milliseconds
+	Activity  string    `json:"activity"`  // "Borrowed", "Returned", etc.
+	Details   string    `json:"details"`
+	Library   string    `json:"library"`
+	LibraryKey string   `json:"library_key"`
+	Format    string    `json:"format"`    // audiobook, ebook, magazine
+	CoverURL  string    `json:"cover_url"`
+	Color     string    `json:"color"`
+}
+
+// TimelineResponse represents the JSON response from Libby timeline export
+type TimelineResponse struct {
+	Version  int              `json:"version"`
+	Timeline []TimelineEntry  `json:"timeline"`
+}
+
 // LibbyHold represents a library hold
 type LibbyHold struct {
 	ID                string    `json:"id"`

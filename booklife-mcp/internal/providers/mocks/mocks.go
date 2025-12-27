@@ -9,19 +9,19 @@ import (
 
 // MockHardcoverProvider is a configurable mock for testing.
 type MockHardcoverProvider struct {
-	SearchBooksFunc      func(ctx context.Context, query string, limit int) ([]models.Book, error)
+	SearchBooksFunc      func(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error)
 	GetBookFunc          func(ctx context.Context, bookID string) (*models.Book, error)
-	GetUserBooksFunc     func(ctx context.Context, status string, limit int) ([]models.Book, error)
+	GetUserBooksFunc     func(ctx context.Context, status string, offset, limit int) ([]models.Book, int, error)
 	UpdateBookStatusFunc func(ctx context.Context, bookID, status string, progress int, rating float64) error
 	AddBookFunc          func(ctx context.Context, isbn, title, author, status string) (string, error)
 	GetReadingStatsFunc  func(ctx context.Context, year int) (*models.ReadingStats, error)
 }
 
-func (m *MockHardcoverProvider) SearchBooks(ctx context.Context, query string, limit int) ([]models.Book, error) {
+func (m *MockHardcoverProvider) SearchBooks(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error) {
 	if m.SearchBooksFunc != nil {
-		return m.SearchBooksFunc(ctx, query, limit)
+		return m.SearchBooksFunc(ctx, query, offset, limit)
 	}
-	return nil, nil
+	return nil, 0, nil
 }
 
 func (m *MockHardcoverProvider) GetBook(ctx context.Context, bookID string) (*models.Book, error) {
@@ -31,11 +31,11 @@ func (m *MockHardcoverProvider) GetBook(ctx context.Context, bookID string) (*mo
 	return nil, nil
 }
 
-func (m *MockHardcoverProvider) GetUserBooks(ctx context.Context, status string, limit int) ([]models.Book, error) {
+func (m *MockHardcoverProvider) GetUserBooks(ctx context.Context, status string, offset, limit int) ([]models.Book, int, error) {
 	if m.GetUserBooksFunc != nil {
-		return m.GetUserBooksFunc(ctx, status, limit)
+		return m.GetUserBooksFunc(ctx, status, offset, limit)
 	}
-	return nil, nil
+	return nil, 0, nil
 }
 
 func (m *MockHardcoverProvider) UpdateBookStatus(ctx context.Context, bookID, status string, progress int, rating float64) error {
@@ -61,18 +61,22 @@ func (m *MockHardcoverProvider) GetReadingStats(ctx context.Context, year int) (
 
 // MockLibbyProvider is a configurable mock for testing.
 type MockLibbyProvider struct {
-	SearchFunc            func(ctx context.Context, query string, formats []string, available bool) ([]models.Book, error)
+	SearchFunc            func(ctx context.Context, query string, formats []string, available bool, offset, limit int) ([]models.Book, int, error)
 	CheckAvailabilityFunc func(ctx context.Context, isbn, title, author string) (*models.LibraryAvailability, error)
 	GetLoansFunc          func(ctx context.Context) ([]models.LibbyLoan, error)
 	GetHoldsFunc          func(ctx context.Context) ([]models.LibbyHold, error)
 	PlaceHoldFunc         func(ctx context.Context, mediaID, format string, autoBorrow bool) (string, error)
+	GetHistoryFunc        func(ctx context.Context, offset, limit int) ([]models.LibbyHistoryItem, int, error)
+	GetTagsFunc           func(ctx context.Context) (map[string][]string, error)
+	AddTagFunc            func(ctx context.Context, mediaID, tag string) error
+	RemoveTagFunc         func(ctx context.Context, mediaID, tag string) error
 }
 
-func (m *MockLibbyProvider) Search(ctx context.Context, query string, formats []string, available bool) ([]models.Book, error) {
+func (m *MockLibbyProvider) Search(ctx context.Context, query string, formats []string, available bool, offset, limit int) ([]models.Book, int, error) {
 	if m.SearchFunc != nil {
-		return m.SearchFunc(ctx, query, formats, available)
+		return m.SearchFunc(ctx, query, formats, available, offset, limit)
 	}
-	return nil, nil
+	return nil, 0, nil
 }
 
 func (m *MockLibbyProvider) CheckAvailability(ctx context.Context, isbn, title, author string) (*models.LibraryAvailability, error) {
@@ -103,10 +107,38 @@ func (m *MockLibbyProvider) PlaceHold(ctx context.Context, mediaID, format strin
 	return "", nil
 }
 
+func (m *MockLibbyProvider) GetHistory(ctx context.Context, offset, limit int) ([]models.LibbyHistoryItem, int, error) {
+	if m.GetHistoryFunc != nil {
+		return m.GetHistoryFunc(ctx, offset, limit)
+	}
+	return nil, 0, nil
+}
+
+func (m *MockLibbyProvider) GetTags(ctx context.Context) (map[string][]string, error) {
+	if m.GetTagsFunc != nil {
+		return m.GetTagsFunc(ctx)
+	}
+	return nil, nil
+}
+
+func (m *MockLibbyProvider) AddTag(ctx context.Context, mediaID, tag string) error {
+	if m.AddTagFunc != nil {
+		return m.AddTagFunc(ctx, mediaID, tag)
+	}
+	return nil
+}
+
+func (m *MockLibbyProvider) RemoveTag(ctx context.Context, mediaID, tag string) error {
+	if m.RemoveTagFunc != nil {
+		return m.RemoveTagFunc(ctx, mediaID, tag)
+	}
+	return nil
+}
+
 // MockOpenLibraryProvider is a configurable mock for testing.
 type MockOpenLibraryProvider struct {
 	GetByISBNFunc      func(ctx context.Context, isbn string) (*models.Book, error)
-	SearchFunc         func(ctx context.Context, query string, limit int) ([]models.Book, error)
+	SearchFunc         func(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error)
 	GetCoverURLFunc    func(isbn string, size string) string
 	GetDescriptionFunc func(ctx context.Context, workID string) (string, error)
 }
@@ -118,11 +150,11 @@ func (m *MockOpenLibraryProvider) GetByISBN(ctx context.Context, isbn string) (*
 	return nil, nil
 }
 
-func (m *MockOpenLibraryProvider) Search(ctx context.Context, query string, limit int) ([]models.Book, error) {
+func (m *MockOpenLibraryProvider) Search(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error) {
 	if m.SearchFunc != nil {
-		return m.SearchFunc(ctx, query, limit)
+		return m.SearchFunc(ctx, query, offset, limit)
 	}
-	return nil, nil
+	return nil, 0, nil
 }
 
 func (m *MockOpenLibraryProvider) GetCoverURL(isbn string, size string) string {

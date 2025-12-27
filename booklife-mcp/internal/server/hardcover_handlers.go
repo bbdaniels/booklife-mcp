@@ -1,0 +1,248 @@
+package server
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/modelcontextprotocol/go-sdk/mcp"
+	"github.com/user/booklife-mcp/internal/models"
+)
+
+// ===== Hardcover Input Types =====
+
+// SearchBooksInput for the search_books tool
+type SearchBooksInput struct {
+	Query   string `json:"query"`
+	Sources []string `json:"sources,omitempty"`
+	// Pagination
+	PaginationParams `json:",inline"`
+	// Filtering
+	Format    []string `json:"format,omitempty"`     // Filter by format: ebook, audiobook, physical
+	MinRating float64   `json:"min_rating,omitempty"` // Minimum community rating
+	Genre     string    `json:"genre,omitempty"`      // Filter by genre
+	// Sorting
+	SortBy string `json:"sort_by,omitempty"` // relevance, rating, date, title
+}
+
+// GetMyLibraryInput for the get_my_library tool
+type GetMyLibraryInput struct {
+	// Filtering
+	Status string `json:"status,omitempty"` // reading, read, want-to-read, dnf, all (default: all)
+	// Sorting
+	SortBy string `json:"sort_by,omitempty"` // date_added, title, author, rating, progress
+	// Pagination
+	PaginationParams `json:",inline"`
+}
+
+// UpdateReadingStatusInput for the update_reading_status tool
+type UpdateReadingStatusInput struct {
+	BookID   string  `json:"book_id"`
+	Status   string  `json:"status"`
+	Progress int     `json:"progress,omitempty"`
+	Rating   float64 `json:"rating,omitempty"`
+}
+
+// AddToLibraryInput for the add_to_library tool
+type AddToLibraryInput struct {
+	ISBN      string `json:"isbn,omitempty"`
+	Title     string `json:"title,omitempty"`
+	Author    string `json:"author,omitempty"`
+	Status    string `json:"status,omitempty"`
+	PlaceHold bool   `json:"place_hold,omitempty"`
+}
+
+// ===== Hardcover Tool Handlers =====
+
+func (s *Server) handleSearchBooks(ctx context.Context, req *mcp.CallToolRequest, input SearchBooksInput) (*mcp.CallToolResult, any, error) {
+	if input.Query == "" {
+		return nil, nil, fmt.Errorf("query is required")
+	}
+	if len(input.Query) > 500 {
+		return nil, nil, fmt.Errorf("query too long (max 500 characters)")
+	}
+
+	// Get pagination parameters
+	page, pageSize := getPagination(input.PaginationParams)
+	offset := input.PaginationParams.offset()
+
+	var results []models.Book
+	var totalCount int
+
+	// Search Hardcover first
+	if s.hardcover != nil {
+		books, total, err := s.hardcover.SearchBooks(ctx, input.Query, offset, pageSize)
+		if err == nil {
+			results = append(results, books...)
+			totalCount = total
+		}
+	}
+
+	// Enrich with Open Library data (only for current page to save API calls)
+	if s.openlibrary != nil {
+		for i := range results {
+			if results[i].ISBN13 != "" {
+				olData, err := s.openlibrary.GetByISBN(ctx, results[i].ISBN13)
+				if err == nil {
+					// Merge Open Library data
+					if results[i].Description == "" {
+						results[i].Description = olData.Description
+					}
+				}
+			}
+		}
+	}
+
+	// Calculate pagination metadata
+	pagedResult := calculatePagedResult(page, pageSize, totalCount)
+
+	// Build detailed text output with IDs for cross-tool usage
+	var sb strings.Builder
+	if len(results) == 0 {
+		sb.WriteString(fmt.Sprintf("No books found for \"%s\"\n", input.Query))
+	} else {
+		sb.WriteString(fmt.Sprintf("Found %d books for \"%s\":\n\n", totalCount, input.Query))
+		for i, book := range results {
+			sb.WriteString(formatBookForDisplay(book, i+1))
+		}
+		sb.WriteString(formatPagingFooter(pagedResult, len(results)))
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: sb.String(),
+			},
+		},
+	}, map[string]any{"books": results, "pagination": pagedResult}, nil
+}
+
+func (s *Server) handleGetMyLibrary(ctx context.Context, req *mcp.CallToolRequest, input GetMyLibraryInput) (*mcp.CallToolResult, any, error) {
+	if s.hardcover == nil {
+		return nil, nil, fmt.Errorf("Hardcover is not configured")
+	}
+
+	// Get pagination parameters
+	page, pageSize := getPagination(input.PaginationParams)
+	offset := input.PaginationParams.offset()
+
+	status := input.Status
+	if status == "" {
+		status = "all"
+	}
+
+	books, totalCount, err := s.hardcover.GetUserBooks(ctx, status, offset, pageSize)
+	if err != nil {
+		return nil, nil, fmt.Errorf("fetching library: %w", err)
+	}
+
+	// Calculate pagination metadata
+	pagedResult := calculatePagedResult(page, pageSize, totalCount)
+
+	// Build detailed text output with book_id for cross-tool usage
+	var sb strings.Builder
+	if len(books) == 0 {
+		sb.WriteString(fmt.Sprintf("No books found in your library with status \"%s\"\n", status))
+	} else {
+		sb.WriteString(fmt.Sprintf("Your library (%s) - %d books:\n\n", status, totalCount))
+		for i, book := range books {
+			sb.WriteString(formatBookForDisplay(book, i+1))
+		}
+		sb.WriteString(formatPagingFooter(pagedResult, len(books)))
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: sb.String(),
+			},
+		},
+	}, map[string]any{"books": books, "status": status, "pagination": pagedResult}, nil
+}
+
+func (s *Server) handleUpdateReadingStatus(ctx context.Context, req *mcp.CallToolRequest, input UpdateReadingStatusInput) (*mcp.CallToolResult, any, error) {
+	if s.hardcover == nil {
+		return nil, nil, fmt.Errorf("Hardcover is not configured")
+	}
+
+	if input.BookID == "" {
+		return nil, nil, fmt.Errorf("book_id is required")
+	}
+
+	if input.Status == "" {
+		return nil, nil, fmt.Errorf("status is required")
+	}
+
+	// Validate progress is in range 0-100
+	if input.Progress < 0 || input.Progress > 100 {
+		return nil, nil, fmt.Errorf("progress must be between 0 and 100")
+	}
+
+	// Validate rating is in range 0-5
+	if input.Rating < 0 || input.Rating > 5 {
+		return nil, nil, fmt.Errorf("rating must be between 0 and 5")
+	}
+
+	err := s.hardcover.UpdateBookStatus(ctx, input.BookID, input.Status, input.Progress, input.Rating)
+	if err != nil {
+		return nil, nil, fmt.Errorf("updating status: %w", err)
+	}
+
+	// Get updated book details directly
+	updatedBook, err := s.hardcover.GetBook(ctx, input.BookID)
+	if err != nil || updatedBook == nil {
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{
+				&mcp.TextContent{
+					Text: fmt.Sprintf("✅ Updated reading status for book_id: %s\n", input.BookID),
+				},
+			},
+		}, map[string]any{"book_id": input.BookID, "status": input.Status}, nil
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("✅ Updated reading status for \"%s\"\n\n%s", updatedBook.Title, formatBookForDisplay(*updatedBook, 0)),
+			},
+		},
+	}, map[string]any{"book_id": input.BookID, "status": input.Status}, nil
+}
+
+func (s *Server) handleAddToLibrary(ctx context.Context, req *mcp.CallToolRequest, input AddToLibraryInput) (*mcp.CallToolResult, any, error) {
+	if s.hardcover == nil {
+		return nil, nil, fmt.Errorf("Hardcover is not configured")
+	}
+
+	bookID, err := s.hardcover.AddBook(ctx, input.ISBN, input.Title, input.Author, input.Status)
+	if err != nil {
+		return nil, nil, fmt.Errorf("adding to library: %w", err)
+	}
+
+	// If place_hold is true and we have a Libby connection, try to place a hold
+	if input.PlaceHold && s.libby != nil && input.ISBN != "" {
+		// Search for the book in Libby
+		searchResult, _, err := s.libby.Search(ctx, input.ISBN, nil, false, 0, 1)
+		if err == nil && len(searchResult) > 0 {
+			mediaID := searchResult[0].LibraryAvailability.MediaID
+			_, holdErr := s.libby.PlaceHold(ctx, mediaID, "ebook", false)
+			if holdErr != nil {
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{
+						&mcp.TextContent{
+							Text: fmt.Sprintf("✅ Added \"%s\" to your library (note: could not place library hold: %v)\n", input.Title, holdErr),
+						},
+					},
+				}, map[string]any{"book_id": bookID}, nil
+			}
+		}
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{
+			&mcp.TextContent{
+				Text: fmt.Sprintf("✅ Added \"%s\" to your library\n", input.Title),
+			},
+		},
+	}, map[string]any{"book_id": bookID}, nil
+}

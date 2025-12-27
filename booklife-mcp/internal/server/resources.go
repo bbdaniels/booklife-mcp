@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -80,7 +81,7 @@ func (s *Server) handleCurrentlyReading(ctx context.Context, req *mcp.ReadResour
 		return nil, fmt.Errorf("Hardcover not configured")
 	}
 
-	books, err := s.hardcover.GetUserBooks(ctx, "reading", 50)
+	books, _, err := s.hardcover.GetUserBooks(ctx, "reading", 0, 50)
 	if err != nil {
 		return nil, fmt.Errorf("fetching currently reading: %w", err)
 	}
@@ -105,7 +106,7 @@ func (s *Server) handleTBR(ctx context.Context, req *mcp.ReadResourceRequest) (*
 		return nil, fmt.Errorf("Hardcover not configured")
 	}
 
-	books, err := s.hardcover.GetUserBooks(ctx, "want-to-read", 100)
+	books, _, err := s.hardcover.GetUserBooks(ctx, "want-to-read", 0, 100)
 	if err != nil {
 		return nil, fmt.Errorf("fetching TBR: %w", err)
 	}
@@ -130,13 +131,24 @@ func (s *Server) handleRecentlyFinished(ctx context.Context, req *mcp.ReadResour
 		return nil, fmt.Errorf("Hardcover not configured")
 	}
 
-	// TODO: Add date filter for "last 30 days"
-	books, err := s.hardcover.GetUserBooks(ctx, "read", 20)
+	// Fetch more books to filter down to last 30 days
+	books, _, err := s.hardcover.GetUserBooks(ctx, "read", 0, 100)
 	if err != nil {
 		return nil, fmt.Errorf("fetching recently finished: %w", err)
 	}
 
-	data, err := json.MarshalIndent(books, "", "  ")
+	// Filter to books finished in the last 30 days
+	thirtyDaysAgo := time.Now().AddDate(0, 0, -30)
+	recentBooks := make([]any, 0)
+	for _, book := range books {
+		if book.UserStatus != nil && book.UserStatus.DateFinished != nil {
+			if book.UserStatus.DateFinished.After(thirtyDaysAgo) {
+				recentBooks = append(recentBooks, book)
+			}
+		}
+	}
+
+	data, err := json.MarshalIndent(recentBooks, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("marshaling books: %w", err)
 	}
@@ -206,7 +218,7 @@ func (s *Server) handleStats(ctx context.Context, req *mcp.ReadResourceRequest) 
 		return nil, fmt.Errorf("Hardcover not configured")
 	}
 
-	stats, err := s.hardcover.GetReadingStats(ctx, 2025)
+	stats, err := s.hardcover.GetReadingStats(ctx, time.Now().Year())
 	if err != nil {
 		return nil, fmt.Errorf("fetching stats: %w", err)
 	}

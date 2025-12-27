@@ -58,22 +58,16 @@ type HardcoverConfig struct {
 }
 
 type LibbyConfig struct {
-	Enabled   bool   `kdl:"enabled"`
-	CloneCode string `kdl:"clone-code"`
-	Libraries struct {
-		Cards []LibraryCard `kdl:"card"`
-	} `kdl:"libraries"`
+	Enabled       bool `kdl:"enabled"`
+	SkipTLSVerify bool `kdl:"skip-tls-verify"`
+	// Libraries are synced from Libby automatically via 'booklife libby-connect'
 	Notifications struct {
 		HoldAvailable bool `kdl:"hold-available"`
 		DueSoonDays   int  `kdl:"due-soon-days"`
 	} `kdl:"notifications"`
-}
-
-type LibraryCard struct {
-	Name     string `kdl:"name"`
-	ID       string `kdl:"id"`
-	Website  string `kdl:"website"`
-	Priority int    `kdl:"priority"`
+	// TimelineURL is the optional Libby timeline export URL for importing reading history
+	// Format: https://share.libbyapp.com/data/{uuid}/libbytimeline-all-loans.json
+	TimelineURL string `kdl:"timeline-url"`
 }
 
 type OpenLibraryConfig struct {
@@ -102,11 +96,11 @@ type TikTokConfig struct {
 
 type LocalBookstoresConfig struct {
 	Enabled bool          `kdl:"enabled"`
-	Stores  []StoreConfig `kdl:"store"`
+	Stores  []StoreConfig `kdl:"store,multiple"`
 }
 
 type StoreConfig struct {
-	ID            string   `kdl:"id"`
+	ID            string   `kdl:",arg"`
 	Name          string   `kdl:"name"`
 	Website       string   `kdl:"website"`
 	Location      string   `kdl:"location"`
@@ -139,8 +133,7 @@ type FeaturesConfig struct {
 // DefaultPath returns the platform-specific default configuration file path.
 // Checks in order:
 // 1. ./booklife.kdl (current directory, for development)
-// 2. ~/.config/booklife/booklife.kdl (XDG config dir)
-// 3. ~/.booklife/booklife.kdl (legacy path)
+// 2. ~/.config/booklife/booklife.kdl (platform-specific config dir)
 func DefaultPath() (string, error) {
 	// Check current directory first (for development)
 	localPath := "booklife.kdl"
@@ -148,7 +141,7 @@ func DefaultPath() (string, error) {
 		return localPath, nil
 	}
 
-	// Check XDG config directory (or platform equivalent)
+	// Use platform-specific config directory (or XDG_CONFIG_HOME)
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return "", err
@@ -158,19 +151,7 @@ func DefaultPath() (string, error) {
 	if xdgConfig == "" {
 		xdgConfig = filepath.Join(home, ".config")
 	}
-	xdgPath := filepath.Join(xdgConfig, "booklife", "booklife.kdl")
-	if _, err := os.Stat(xdgPath); err == nil {
-		return xdgPath, nil
-	}
-
-	// Fall back to legacy path
-	legacyPath := filepath.Join(home, ".booklife", "booklife.kdl")
-	if _, err := os.Stat(legacyPath); err == nil {
-		return legacyPath, nil
-	}
-
-	// Return the recommended path (doesn't exist yet)
-	return xdgPath, nil
+	return filepath.Join(xdgConfig, "booklife", "booklife.kdl"), nil
 }
 
 // Load reads and parses the KDL configuration file
@@ -199,7 +180,6 @@ func Load(path string) (*Config, error) {
 // resolveEnvVars replaces env="VAR_NAME" patterns with actual environment values
 func resolveEnvVars(cfg *Config) {
 	cfg.Providers.Hardcover.APIKey = resolveEnv(cfg.Providers.Hardcover.APIKey)
-	cfg.Providers.Libby.CloneCode = resolveEnv(cfg.Providers.Libby.CloneCode)
 	cfg.Providers.YouTube.APIKey = resolveEnv(cfg.Providers.YouTube.APIKey)
 	cfg.Providers.TikTok.ScraperAPI = resolveEnv(cfg.Providers.TikTok.ScraperAPI)
 }
@@ -222,9 +202,9 @@ func validate(cfg *Config) error {
 		return fmt.Errorf("Hardcover API key required when Hardcover is enabled")
 	}
 
-	if cfg.Providers.Libby.Enabled && cfg.Providers.Libby.CloneCode == "" {
-		return fmt.Errorf("Libby clone code required when Libby is enabled")
-	}
+	// Note: Libby no longer requires clone code in config.
+	// Identity is stored in ~/.config/booklife/libby-identity.json
+	// via 'booklife libby-connect <code>'
 
 	return nil
 }

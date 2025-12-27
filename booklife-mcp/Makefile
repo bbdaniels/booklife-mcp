@@ -15,6 +15,11 @@ else
 	# Unix-like (Linux, macOS, BSD)
 	INSTALL_DIR=$(HOME)/.local/bin
 	BIN_PATH=$(INSTALL_DIR)/$(BINARY_NAME)
+	# Go bin directory
+	GOBIN?=$(shell go env GOPATH)/bin
+	ifeq ($(GOBIN),/bin)
+		GOBIN=$(HOME)/go/bin
+	endif
 endif
 
 # Go build flags
@@ -68,11 +73,37 @@ endif
 	@chmod +x $(BIN_PATH)
 	@echo "Installed to: $(BIN_PATH)"
 
+## install-go: Install the binary to $(GOPATH)/bin (Go binary folder)
+install-go: build
+	@echo "Installing $(BINARY_NAME) to $(GOBIN)..."
+	@mkdir -p $(GOBIN)
+ifdef COPY_ON_WRITE
+	@echo "Installing with copy-on-write (reflink)..."
+	@if command -v reflink >/dev/null 2>&1; then \
+		reflink $(BUILD_DIR)/$(BINARY_NAME) $(GOBIN)/$(BINARY_NAME); \
+	elif command -v cp >/dev/null 2>&1 && cp --help 2>&1 | grep -q reflink; then \
+		cp --reflink=auto $(BUILD_DIR)/$(BINARY_NAME) $(GOBIN)/$(BINARY_NAME); \
+	else \
+		echo "Warning: reflink not available, falling back to regular copy"; \
+		cp $(BUILD_DIR)/$(BINARY_NAME) $(GOBIN)/$(BINARY_NAME); \
+	fi
+else
+	@cp $(BUILD_DIR)/$(BINARY_NAME) $(GOBIN)/$(BINARY_NAME)
+endif
+	@chmod +x $(GOBIN)/$(BINARY_NAME)
+	@echo "Installed to: $(GOBIN)/$(BINARY_NAME)"
+
 ## uninstall: Remove the installed binary
 uninstall:
 	@echo "Removing $(BIN_PATH)..."
 	@rm -f $(BIN_PATH)
 	@echo "Uninstalled"
+
+## uninstall-go: Remove the binary from Go bin folder
+uninstall-go:
+	@echo "Removing $(GOBIN)/$(BINARY_NAME)..."
+	@rm -f $(GOBIN)/$(BINARY_NAME)
+	@echo "Uninstalled from $(GOBIN)/"
 
 ## test: Run all tests
 test:

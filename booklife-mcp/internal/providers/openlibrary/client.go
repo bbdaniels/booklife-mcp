@@ -139,31 +139,34 @@ func (c *Client) GetByISBN(ctx context.Context, isbn string) (*models.Book, erro
 	return book, nil
 }
 
-// Search searches for books
-func (c *Client) Search(ctx context.Context, query string, limit int) ([]models.Book, error) {
+// Search searches for books with pagination support
+func (c *Client) Search(ctx context.Context, query string, offset, limit int) ([]models.Book, int, error) {
 	if err := c.limiter.Wait(ctx); err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	params := url.Values{}
 	params.Set("q", query)
 	params.Set("limit", fmt.Sprintf("%d", limit))
+	params.Set("offset", fmt.Sprintf("%d", offset))
 
 	endpoint := fmt.Sprintf("%s/search.json?%s", c.endpoint, params.Encode())
 
 	req, err := http.NewRequestWithContext(ctx, "GET", endpoint, nil)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer resp.Body.Close()
 
 	var result struct {
-		Docs []struct {
+		NumFound int  `json:"numFound"`
+		Start    int  `json:"start"`
+		Docs     []struct {
 			Key           string   `json:"key"`
 			Title         string   `json:"title"`
 			AuthorName    []string `json:"author_name"`
@@ -176,7 +179,7 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]models.
 	}
 
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decoding search results: %w", err)
+		return nil, 0, fmt.Errorf("decoding search results: %w", err)
 	}
 
 	var books []models.Book
@@ -216,7 +219,7 @@ func (c *Client) Search(ctx context.Context, query string, limit int) ([]models.
 		books = append(books, book)
 	}
 
-	return books, nil
+	return books, result.NumFound, nil
 }
 
 // GetCoverURL returns a cover URL for a book

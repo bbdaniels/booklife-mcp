@@ -3,9 +3,12 @@ package server
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/user/booklife-mcp/internal/config"
+	"github.com/user/booklife-mcp/internal/history"
 	"github.com/user/booklife-mcp/internal/providers"
 	"github.com/user/booklife-mcp/internal/providers/hardcover"
 	"github.com/user/booklife-mcp/internal/providers/libby"
@@ -21,6 +24,9 @@ type Server struct {
 	hardcover   providers.HardcoverProvider
 	libby       providers.LibbyProvider
 	openlibrary providers.OpenLibraryProvider
+
+	// Local history store
+	historyStore *history.Store
 }
 
 // New creates a new BookLife MCP server
@@ -53,6 +59,18 @@ func New(cfg *config.Config) (*Server, error) {
 }
 
 func (s *Server) initProviders() error {
+	// Initialize local history store
+	dataDir := os.Getenv("BOOKLIFE_DATA_DIR")
+	if dataDir == "" {
+		home, _ := os.UserHomeDir()
+		dataDir = filepath.Join(home, ".local", "share", "booklife")
+	}
+	store, err := history.NewStore(dataDir)
+	if err != nil {
+		return fmt.Errorf("initializing history store: %w", err)
+	}
+	s.historyStore = store
+
 	// Hardcover
 	if s.cfg.Providers.Hardcover.Enabled {
 		client, err := hardcover.NewClient(
@@ -64,16 +82,30 @@ func (s *Server) initProviders() error {
 		}
 		s.hardcover = client
 	}
-	
-	// Libby
+
+	// Libby - uses saved identity from 'booklife libby-connect'
 	if s.cfg.Providers.Libby.Enabled {
-		client, err := libby.NewClient(s.cfg.Providers.Libby.CloneCode)
+		if !libby.HasSavedIdentity() {
+			return fmt.Errorf("Libby enabled but no saved identity found - run 'booklife libby-connect <code>' first")
+		}
+		client, err := libby.NewClientFromSavedIdentityWithOptions(s.cfg.Providers.Libby.SkipTLSVerify)
 		if err != nil {
 			return fmt.Errorf("initializing Libby client: %w", err)
 		}
 		s.libby = client
+
+		// Auto-import timeline if URL is configured
+		if s.cfg.Providers.Libby.TimelineURL != "" {
+			importer := history.NewImporter(store)
+			count, err := importer.ImportTimeline(s.cfg.Providers.Libby.TimelineURL)
+			if err != nil {
+				fmt.Printf("Warning: Failed to import timeline: %v\n", err)
+			} else {
+				fmt.Printf("Imported %d timeline entries\n", count)
+			}
+		}
 	}
-	
+
 	// Open Library
 	if s.cfg.Providers.OpenLibrary.Enabled {
 		s.openlibrary = openlibrary.NewClient(
@@ -81,7 +113,7 @@ func (s *Server) initProviders() error {
 			s.cfg.Providers.OpenLibrary.CoversEndpoint,
 		)
 	}
-	
+
 	return nil
 }
 

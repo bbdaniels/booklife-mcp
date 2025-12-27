@@ -127,7 +127,7 @@ func (s *Server) buildHardcoverContext(ctx context.Context) string {
 	var b strings.Builder
 
 	// Get recently finished books
-	recent, err := s.hardcover.GetUserBooks(ctx, "read", 10)
+	recent, _, err := s.hardcover.GetUserBooks(ctx, "read", 0, 10)
 	if err == nil && len(recent) > 0 {
 		b.WriteString("Recently finished books:\n")
 		for _, book := range recent {
@@ -136,7 +136,7 @@ func (s *Server) buildHardcoverContext(ctx context.Context) string {
 	}
 
 	// Get TBR
-	tbr, err := s.hardcover.GetUserBooks(ctx, "want-to-read", 20)
+	tbr, _, err := s.hardcover.GetUserBooks(ctx, "want-to-read", 0, 20)
 	if err == nil && len(tbr) > 0 {
 		b.WriteString("\nBooks on TBR:\n")
 		for _, book := range tbr {
@@ -249,15 +249,19 @@ func (s *Server) handleBookSummary(ctx context.Context, req *mcp.GetPromptReques
 	var bookContext string
 	// Try to get book metadata
 	if s.hardcover != nil {
-		books, err := s.hardcover.SearchBooks(ctx, title, 1)
+		books, _, err := s.hardcover.SearchBooks(ctx, title, 0, 1)
 		if err == nil && len(books) > 0 {
 			book := books[0]
+			authorName := "Unknown"
+			if len(book.Authors) > 0 {
+				authorName = book.Authors[0].Name
+			}
 			bookContext = fmt.Sprintf(`
 Book: %s
 Author: %s
 Genres: %v
 Description: %s
-`, book.Title, book.Authors[0].Name, book.Genres, book.Description)
+`, book.Title, authorName, book.Genres, book.Description)
 		}
 	}
 
@@ -288,11 +292,15 @@ func (s *Server) handleReadingWrapUp(ctx context.Context, req *mcp.GetPromptRequ
 	var readingData string
 	if s.hardcover != nil {
 		// Get books read in period
-		books, _ := s.hardcover.GetUserBooks(ctx, "read", 100)
+		books, _, _ := s.hardcover.GetUserBooks(ctx, "read", 0, 100)
 		if len(books) > 0 {
 			readingData = "Books read:\n"
 			for _, b := range books {
-				readingData += fmt.Sprintf("- %s by %s", b.Title, b.Authors[0].Name)
+				authorName := "Unknown"
+				if len(b.Authors) > 0 {
+					authorName = b.Authors[0].Name
+				}
+				readingData += fmt.Sprintf("- %s by %s", b.Title, authorName)
 				if b.UserStatus != nil && b.UserStatus.Rating > 0 {
 					readingData += fmt.Sprintf(" (%.1f/5)", b.UserStatus.Rating)
 				}
@@ -358,13 +366,19 @@ Be balanced and help the reader understand the differences to make an informed c
 func (s *Server) handlePickFromTBR(ctx context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	constraints := req.Params.Arguments["constraints"]
 
+	var tbrBooks []models.Book
 	var tbrContext string
 	if s.hardcover != nil {
-		tbr, _ := s.hardcover.GetUserBooks(ctx, "want-to-read", 50)
+		tbr, _, _ := s.hardcover.GetUserBooks(ctx, "want-to-read", 0, 50)
+		tbrBooks = tbr
 		if len(tbr) > 0 {
 			tbrContext = "TBR pile:\n"
 			for _, b := range tbr {
-				tbrContext += fmt.Sprintf("- %s by %s", b.Title, b.Authors[0].Name)
+				authorName := "Unknown"
+				if len(b.Authors) > 0 {
+					authorName = b.Authors[0].Name
+				}
+				tbrContext += fmt.Sprintf("- %s by %s", b.Title, authorName)
 				if b.PageCount > 0 {
 					tbrContext += fmt.Sprintf(" (%d pages)", b.PageCount)
 				}
@@ -375,9 +389,59 @@ func (s *Server) handlePickFromTBR(ctx context.Context, req *mcp.GetPromptReques
 
 	// Check which TBR books are available at library
 	var availabilityContext string
-	if s.libby != nil {
+	if s.libby != nil && len(tbrBooks) > 0 {
 		availabilityContext = "\nLibrary availability for TBR books:\n"
-		// TODO: Check each TBR book against library
+		availableNow := []string{}
+		shortWait := []string{}
+
+		// Check availability for each TBR book (limit to first 20 to avoid rate limiting)
+		checkLimit := len(tbrBooks)
+		if checkLimit > 20 {
+			checkLimit = 20
+		}
+
+		for _, book := range tbrBooks[:checkLimit] {
+			// Try ISBN first, then title+author
+			isbn := book.ISBN13
+			if isbn == "" {
+				isbn = book.ISBN10
+			}
+
+			avail, err := s.libby.CheckAvailability(ctx, isbn, book.Title, "")
+			if err != nil || avail == nil {
+				continue
+			}
+
+			bookRef := book.Title
+			if avail.EbookAvailable || avail.AudiobookAvailable {
+				formats := []string{}
+				if avail.EbookAvailable {
+					formats = append(formats, "ebook")
+				}
+				if avail.AudiobookAvailable {
+					formats = append(formats, "audiobook")
+				}
+				availableNow = append(availableNow, fmt.Sprintf("%s (%s)", bookRef, strings.Join(formats, ", ")))
+			} else if avail.EstimatedWaitDays > 0 && avail.EstimatedWaitDays < 14 {
+				shortWait = append(shortWait, fmt.Sprintf("%s (~%d day wait)", bookRef, avail.EstimatedWaitDays))
+			}
+		}
+
+		if len(availableNow) > 0 {
+			availabilityContext += "✅ Available NOW at library:\n"
+			for _, b := range availableNow {
+				availabilityContext += fmt.Sprintf("  - %s\n", b)
+			}
+		}
+		if len(shortWait) > 0 {
+			availabilityContext += "⏳ Short wait at library:\n"
+			for _, b := range shortWait {
+				availabilityContext += fmt.Sprintf("  - %s\n", b)
+			}
+		}
+		if len(availableNow) == 0 && len(shortWait) == 0 {
+			availabilityContext += "(No TBR books currently available at library)\n"
+		}
 	}
 
 	systemPrompt := `You are helping someone choose what to read from their TBR pile.
