@@ -3,6 +3,11 @@ booklife-mcp/booklife
 booklife-mcp/build/
 build/
 
+# Node.js
+node_modules/
+docs-site/build/
+docs-site/.docusaurus/
+
 # Backup files
 *.bak
 
