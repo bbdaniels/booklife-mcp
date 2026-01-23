@@ -7,10 +7,6 @@ const config: Config = {
   tagline: 'Your reading life, unified',
   favicon: 'img/favicon.ico',
 
-  future: {
-    v4: true,
-  },
-
   url: 'https://andylbrummer.github.io',
   baseUrl: '/booklife-mcp/',
 
