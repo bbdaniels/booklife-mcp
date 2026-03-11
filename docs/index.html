@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BookLife MCP - Unified Reading Life Management via MCP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Source+Serif+4:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #fafaf9;
+            --text: #1c1917;
+            --text-secondary: #57534e;
+            --accent: #292524;
+            --border: #e7e5e4;
+            --card-bg: #ffffff;
+            --link: #2563eb;
+            --link-hover: #1d4ed8;
+            --hover-bg: rgba(0, 0, 0, 0.04);
+            --shadow-color: rgba(0, 0, 0, 0.08);
+            --max-width: 960px;
+            --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            --font-serif: 'Source Serif 4', Georgia, 'Times New Roman', serif;
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a2332;
+                --text: #e5e5e5;
+                --text-secondary: #a3b1c2;
+                --accent: #e5e5e5;
+                --border: #2f3d4f;
+                --card-bg: #212c3b;
+                --link: #60a5fa;
+                --link-hover: #93bbfd;
+                --hover-bg: rgba(255, 255, 255, 0.06);
+                --shadow-color: rgba(0, 0, 0, 0.3);
+            }
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: var(--font-sans);
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .rainbow-bar {
+            height: 10px;
+            background: linear-gradient(to right, red, orange, yellow, green, blue, indigo, violet);
+        }
+        nav {
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+            padding: 0.75rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 1px 3px var(--shadow-color);
+        }
+        nav a {
+            color: var(--text);
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+        nav a:hover { color: var(--link); }
+        nav .nav-links a {
+            color: var(--text-secondary);
+            margin-left: 1.5rem;
+            font-weight: 500;
+        }
+        nav .nav-links a:hover { color: var(--link); }
+        .container {
+            max-width: var(--max-width);
+            margin: 0 auto;
+            padding: 3rem 2rem;
+        }
+        h1 {
+            font-family: var(--font-serif);
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            color: var(--accent);
+        }
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.15rem;
+            margin-bottom: 2.5rem;
+            max-width: 700px;
+        }
+        h2 {
+            font-family: var(--font-serif);
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-top: 2.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+        h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+        p { margin-bottom: 1rem; }
+        a { color: var(--link); text-decoration: none; }
+        a:hover { color: var(--link-hover); text-decoration: underline; }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        @media (max-width: 640px) {
+            .cards { grid-template-columns: 1fr; }
+            h1 { font-size: 2rem; }
+        }
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            box-shadow: 0 1px 3px var(--shadow-color);
+        }
+        .card h3 { margin-top: 0; margin-bottom: 0.5rem; }
+        .card p { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 0; }
+        pre {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1rem 1.25rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+            font-size: 0.875rem;
+            line-height: 1.7;
+        }
+        code {
+            font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+            font-size: 0.875rem;
+        }
+        :not(pre) > code {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.95rem;
+        }
+        th, td {
+            padding: 0.6rem 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            font-weight: 600;
+            color: var(--accent);
+            border-bottom: 2px solid var(--border);
+        }
+        .note {
+            background: var(--card-bg);
+            border-left: 3px solid var(--link);
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            border-radius: 0 8px 8px 0;
+            font-size: 0.95rem;
+        }
+        .note strong { color: var(--link); }
+        .arch {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+            margin: 1rem 0;
+            font-family: 'SF Mono', 'Fira Code', 'Fira Mono', Menlo, Consolas, monospace;
+            font-size: 0.8rem;
+            line-height: 1.6;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        footer {
+            margin-top: 3rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="rainbow-bar"></div>
+    <nav>
+        <a href="https://www.benjaminbdaniels.com">Benjamin B Daniels</a>
+        <div class="nav-links">
+            <a href="https://github.com/bbdaniels/booklife-mcp">GitHub</a>
+        </div>
+    </nav>
+
+    <div class="container">
+        <h1>BookLife MCP</h1>
+        <p class="tagline">Your reading life, unified. One MCP server that connects Hardcover (reading tracker), Libby (library access), and Open Library (metadata) into a seamless AI-powered reading assistant with 27 tools.</p>
+
+        <div class="cards">
+            <div class="card">
+                <h3>Library Access (Libby)</h3>
+                <p>Search your library catalog, check availability, place holds on ebooks and audiobooks, and track loans and due dates.</p>
+            </div>
+            <div class="card">
+                <h3>Reading Tracker (Hardcover)</h3>
+                <p>Manage your reading list, update progress, rate books, and maintain your reading history through natural language.</p>
+            </div>
+            <div class="card">
+                <h3>Unified TBR</h3>
+                <p>A single to-be-read list aggregating Hardcover want-to-read, Libby holds and tags, and manually added physical books.</p>
+            </div>
+            <div class="card">
+                <h3>Comprehensive Sync</h3>
+                <p>One-command sync: import Libby loans, mark returned books as read in Hardcover, enrich metadata, cache tags. Incremental with dry-run preview.</p>
+            </div>
+            <div class="card">
+                <h3>Recommendations</h3>
+                <p>Content-based recommendations using enriched themes, topics, and mood data from Open Library and Google Books.</p>
+            </div>
+            <div class="card">
+                <h3>Reading Analytics</h3>
+                <p>Format preferences, top genres, favorite authors, reading cadence, streaks, and completion rates -- all analyzed automatically.</p>
+            </div>
+        </div>
+
+        <h2>Quick Start</h2>
+        <pre><code># Set your Hardcover API key
+export HARDCOVER_API_KEY="your-key-from-hardcover.app/settings/api"
+
+# Add to Claude Code
+claude mcp add booklife -e HARDCOVER_API_KEY=your-key -- booklife serve</code></pre>
+
+        <div class="note">
+            <strong>Install from source:</strong> Requires Go 1.23+. Clone the repo, then <code>cd booklife-mcp/booklife-mcp && make install</code> to build and install to <code>~/.local/bin/booklife</code>.
+        </div>
+
+        <h2>Tools at a Glance</h2>
+        <table>
+            <tr>
+                <th>Category</th>
+                <th>Tools</th>
+                <th>Purpose</th>
+            </tr>
+            <tr>
+                <td>Hardcover</td>
+                <td>3</td>
+                <td>Library management, status updates, book tracking</td>
+            </tr>
+            <tr>
+                <td>Libby</td>
+                <td>6</td>
+                <td>Catalog search, loans, holds, tag sync</td>
+            </tr>
+            <tr>
+                <td>TBR</td>
+                <td>6</td>
+                <td>Unified reading list across all sources</td>
+            </tr>
+            <tr>
+                <td>Unified</td>
+                <td>2</td>
+                <td>Cross-provider search and access recommendations</td>
+            </tr>
+            <tr>
+                <td>History</td>
+                <td>4</td>
+                <td>Timeline import, local store, statistics</td>
+            </tr>
+            <tr>
+                <td>Enrichment</td>
+                <td>2</td>
+                <td>Background metadata jobs with progress tracking</td>
+            </tr>
+            <tr>
+                <td>Sync</td>
+                <td>1</td>
+                <td>Universal sync with progressive disclosure</td>
+            </tr>
+            <tr>
+                <td>Profile</td>
+                <td>1</td>
+                <td>Reading preferences and patterns</td>
+            </tr>
+            <tr>
+                <td>Recommendations</td>
+                <td>1</td>
+                <td>Content-based book similarity</td>
+            </tr>
+            <tr>
+                <td>Info</td>
+                <td>1</td>
+                <td>Progressive discovery and workflow guides</td>
+            </tr>
+        </table>
+
+        <h2>Architecture</h2>
+        <div class="arch">+-----------------------------------------+
+|        Claude / AI Assistant            |
++-------------------+---------------------+
+                    | MCP (stdio)
++-------------------v---------------------+
+|         BookLife MCP Server             |
+|                                         |
+|  +----------+ +---------+ +-----------+ |
+|  | Hardcover| |  Libby  | |OpenLibrary| |
+|  |  GraphQL | |   API   | | REST API  | |
+|  +----------+ +---------+ +-----------+ |
+|                                         |
+|  +-----------------------------------+  |
+|  |       Local SQLite Store          |  |
+|  |   History - TBR - Enrichment      |  |
+|  +-----------------------------------+  |
++-----------------------------------------+</div>
+
+        <h2>Environment Variables</h2>
+        <table>
+            <tr>
+                <th>Variable</th>
+                <th>Required</th>
+                <th>Description</th>
+            </tr>
+            <tr>
+                <td><code>HARDCOVER_API_KEY</code></td>
+                <td>Yes</td>
+                <td>API key from <a href="https://hardcover.app/settings/api">hardcover.app/settings/api</a></td>
+            </tr>
+            <tr>
+                <td><code>BOOKLIFE_DATA_DIR</code></td>
+                <td>No</td>
+                <td>Data directory (default: <code>~/.local/share/booklife</code>)</td>
+            </tr>
+            <tr>
+                <td><code>BOOKLIFE_LOG_LEVEL</code></td>
+                <td>No</td>
+                <td><code>debug</code> / <code>info</code> / <code>warn</code> / <code>error</code></td>
+            </tr>
+        </table>
+
+        <h2>CLI Commands</h2>
+        <pre><code>booklife serve --config booklife.kdl    # Start MCP server
+booklife libby-connect &lt;code&gt;           # Connect Libby account
+booklife sync [--dry-run] [--limit N]   # Sync returned books to Hardcover
+booklife import-timeline &lt;file&gt;         # Import Libby timeline JSON
+booklife version                        # Show version</code></pre>
+
+        <footer>
+            <p>&copy; 2025 Benjamin B Daniels</p>
+        </footer>
+    </div>
+</body>
+</html>
