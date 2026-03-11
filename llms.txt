@@ -1,0 +1,65 @@
+# booklife-mcp
+
+> MCP server for managing reading lists across Hardcover, Libby, and local TBR -- a unified AI-powered reading assistant.
+
+## What It Does
+
+BookLife bridges Hardcover (reading tracker), Libby/OverDrive (library access), and Open Library (metadata) into a single MCP server. Discover books, borrow from the library, track reading progress, manage a unified TBR list, sync across services, and get content-based recommendations -- all through natural conversation.
+
+## Install
+
+```bash
+# Build from source (Go 1.23+)
+git clone https://github.com/bbdaniels/booklife-mcp.git
+cd booklife-mcp/booklife-mcp && make install
+
+# Add to Claude Code
+claude mcp add booklife -e HARDCOVER_API_KEY=your-key -- ~/.local/bin/booklife serve
+```
+
+## Tools
+
+- **info** -- Progressive discovery: list tools, workflows, and categories
+- **sync** -- Universal sync: Libby history -> Hardcover "read" status -> enrichment -> tag cache
+- **profile_get** -- Reading profile with format preferences, genres, cadence, streaks
+
+### Hardcover
+- **hardcover_get_my_library** -- Get reading list (reading, want-to-read, read) with pagination
+- **hardcover_add_to_library** -- Add a book by ISBN or title/author
+- **hardcover_update_reading_status** -- Update status, progress, or rating
+
+### TBR (Unified To-Be-Read)
+- **tbr_list** -- List unified TBR across all sources (physical, hardcover, libby)
+- **tbr_add** -- Add a book manually (physical books or custom entries)
+- **tbr_remove** -- Remove a book from TBR
+- **tbr_search** -- Search TBR by title or author
+- **tbr_stats** -- TBR breakdown by source and availability
+- **tbr_sync** -- Sync TBR from Hardcover, Libby holds, or Libby tags
+
+### Search & Access
+- **booklife_find_book_everywhere** -- Search all sources for a book with availability info
+- **booklife_best_way_to_read** -- Determine best access method (library, bookstore, etc.)
+
+### History & Analytics
+- **history_get** -- Browse reading history with pagination and search
+- **history_stats** -- Reading statistics by format, library, year
+- **history_import_timeline** -- Import Libby timeline from export URL
+- **history_sync_current_loans** -- Capture current Libby loans for tracking
+
+### Enrichment & Recommendations
+- **enrichment_enrich_history** -- Background job to fetch metadata from Open Library/Google Books
+- **enrichment_status** -- Monitor enrichment job progress
+- **book_find_similar** -- Content-based recommendations using enriched metadata
+
+## Configuration
+
+Required environment variable:
+- `HARDCOVER_API_KEY` -- Get from https://hardcover.app/settings/api
+
+Optional:
+- `BOOKLIFE_DATA_DIR` -- Data directory (default: `~/.local/share/booklife`)
+- `BOOKLIFE_LOG_LEVEL` -- `debug` / `info` / `warn` / `error`
+
+Libby auth: Run `booklife libby-connect <8-digit-code>` (get code from Libby app: Settings -> Copy To Another Device -> Sonos Speakers).
+
+Config file: `~/.config/booklife/booklife.kdl` (see README for full KDL schema).
