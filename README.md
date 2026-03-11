@@ -2,30 +2,74 @@
 
 **Your reading life, unified.** One MCP server that connects your library, reading tracker, and bookshelf into a seamless AI-powered reading assistant.
 
-BookLife bridges [Hardcover](https://hardcover.app) (reading tracker), [Libby/OverDrive](https://libbyapp.com) (library access), and [Open Library](https://openlibrary.org) (metadata) so you can discover books, borrow from the library, track your reading, and get personalized recommendations — all through natural conversation with Claude.
+BookLife bridges [Hardcover](https://hardcover.app) (reading tracker), [Libby/OverDrive](https://libbyapp.com) (library access), and [Open Library](https://openlibrary.org) (metadata) so you can discover books, borrow from the library, track your reading, and get personalized recommendations -- all through natural conversation with Claude.
 
 ---
 
-## Quick Start
+## Quick Start with Claude Code
 
-### 1. Build
+If you use [Claude Code](https://docs.anthropic.com/en/docs/claude-code), you can add BookLife as an MCP server in one command:
 
 ```bash
-cd booklife-mcp
+claude mcp add booklife -- /path/to/booklife serve
+```
+
+Replace `/path/to/booklife` with the absolute path to your built binary (e.g. `~/.local/bin/booklife`). Set the required environment variable first:
+
+```bash
+export HARDCOVER_API_KEY="your-key-from-hardcover.app/settings/api"
+```
+
+Or pass it inline:
+
+```bash
+claude mcp add booklife -e HARDCOVER_API_KEY=your-key -- /path/to/booklife serve
+```
+
+That's it -- Claude Code will start the MCP server automatically when needed.
+
+---
+
+## Install
+
+### From Source (requires Go 1.23+)
+
+```bash
+git clone https://github.com/bbdaniels/booklife-mcp.git
+cd booklife-mcp/booklife-mcp
+make install
+```
+
+This builds the `booklife` binary and installs it to `~/.local/bin/booklife`. Make sure `~/.local/bin` is on your `PATH`.
+
+Alternatively, build without installing:
+
+```bash
+cd booklife-mcp/booklife-mcp
 go build -o booklife ./cmd/booklife
 ```
 
-### 2. Connect Libby
+### Verify
+
+```bash
+booklife version
+```
+
+---
+
+## Setup
+
+### 1. Connect Libby
 
 ```bash
 # Get your clone code from Libby app:
 # Settings → Copy To Another Device → Sonos Speakers
-./booklife libby-connect <8-digit-code>
+booklife libby-connect <8-digit-code>
 ```
 
-### 3. Configure
+### 2. Configure
 
-Create `booklife.kdl`:
+Create `booklife.kdl` (default location: `~/.config/booklife/booklife.kdl`):
 
 ```kdl
 server {
@@ -54,14 +98,14 @@ providers {
 }
 ```
 
-### 4. Add to Claude Desktop
+### 3. Add to Claude Desktop
 
 ```json
 {
   "mcpServers": {
     "booklife": {
       "command": "/path/to/booklife",
-      "args": ["--config", "/path/to/booklife.kdl"],
+      "args": ["serve", "--config", "/path/to/booklife.kdl"],
       "env": {
         "HARDCOVER_API_KEY": "your-key-from-hardcover.app/settings/api"
       }
@@ -70,7 +114,7 @@ providers {
 }
 ```
 
-### 5. Install the Claude Code Plugin (Optional)
+### 4. Install the Claude Code Plugin (Optional)
 
 For enhanced Claude Code integration with skills and slash commands:
 
