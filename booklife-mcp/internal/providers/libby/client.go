@@ -421,7 +421,10 @@ func (c *Client) CheckAvailability(ctx context.Context, isbn, title, author stri
 		}
 	}
 
-	books, _, err := c.Search(ctx, query, nil, false, 0, 1)
+	// Fetch several editions: the top hit is often an audiobook, so a single
+	// result would misreport a title that also exists as an ebook. Scan the
+	// results and merge the best ebook and audiobook availability into one.
+	books, _, err := c.Search(ctx, query, nil, false, 0, 10)
 	if err != nil {
 		return nil, err
 	}
@@ -430,7 +433,46 @@ func (c *Client) CheckAvailability(ctx context.Context, isbn, title, author stri
 		return nil, nil
 	}
 
-	return books[0].LibraryAvailability, nil
+	merged := &models.LibraryAvailability{
+		LibraryName: books[0].LibraryAvailability.LibraryName,
+		MediaID:     books[0].LibraryAvailability.MediaID,
+	}
+	var sawEbook, sawAudio bool
+	for i := range books {
+		av := books[i].LibraryAvailability
+		if av == nil {
+			continue
+		}
+		for _, f := range av.Formats {
+			switch f {
+			case "ebook":
+				// Prefer an available edition; otherwise keep the first seen.
+				if !sawEbook || (av.EbookAvailable && !merged.EbookAvailable) {
+					merged.EbookAvailable = av.EbookAvailable
+					merged.EbookCopies = av.EbookCopies
+					merged.EbookWaitlistSize = av.EbookWaitlistSize
+					merged.EbookID = av.EbookID
+				}
+				sawEbook = true
+			case "audiobook":
+				if !sawAudio || (av.AudiobookAvailable && !merged.AudiobookAvailable) {
+					merged.AudiobookAvailable = av.AudiobookAvailable
+					merged.AudiobookCopies = av.AudiobookCopies
+					merged.AudiobookWaitlistSize = av.AudiobookWaitlistSize
+					merged.AudiobookID = av.AudiobookID
+				}
+				sawAudio = true
+			}
+		}
+	}
+	if sawEbook {
+		merged.Formats = append(merged.Formats, "ebook")
+	}
+	if sawAudio {
+		merged.Formats = append(merged.Formats, "audiobook")
+	}
+
+	return merged, nil
 }
 
 // GetLoans returns current loans

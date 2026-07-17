@@ -9,7 +9,8 @@ server {
 
 user {
     name "Reader"
-    timezone "America/Chicago"
+    // NOTE: not currently read by any code path; due-date maths uses absolute times.
+    timezone "Asia/Manila"
     
     preferences {
         genres "literary-fiction" "sci-fi" "fantasy" "non-fiction"
@@ -22,7 +23,7 @@ user {
 providers {
     
     hardcover enabled=true {
-        api-key env="HARDCOVER_API_KEY"
+        api-key "env=HARDCOVER_API_KEY"
         endpoint "https://api.hardcover.app/v1/graphql"
         
         sync {
